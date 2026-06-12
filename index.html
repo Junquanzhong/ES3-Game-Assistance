@@ -1,0 +1,1587 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Game Assistance ES3 存档修改器 v2.0.0</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- 引入 Inter 字体，提升英文字母和数字的渲染质感 -->
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['Inter', 'ui-sans-serif', 'system-ui', '-apple-system', 'BlinkMacSystemFont', 'Segoe UI', 'Roboto', 'sans-serif'],
+            mono: ['ui-monospace', 'SFMono-Regular', 'Menlo', 'Consolas', 'Liberation Mono', 'monospace'],
+          },
+          colors: {
+            primary: {
+              50: '#f0fdfa',
+              100: '#ccfbf1',
+              500: '#14b8a6',
+              600: '#0d9488',
+              700: '#0f766e',
+              800: '#115e59',
+            }
+          }
+        }
+      }
+    }
+  </script>
+  <style>
+    :root {
+      color-scheme: light;
+      --paper: #f8fafc;
+      --panel: #ffffff;
+      --line: #e2e8f0;
+      --primary-ring: rgba(15, 118, 110, 0.15);
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      min-height: 100vh;
+      margin: 0;
+      background: var(--paper);
+      color: #0f172a;
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+      background-image: radial-gradient(circle at top right, #f0fdfa 0%, #f8fafc 40%);
+    }
+
+    /* 优雅的自定义滚动条 */
+    ::-webkit-scrollbar { width: 6px; height: 6px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
+    ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+
+    .glass-header {
+      background: rgba(255, 255, 255, 0.85);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      border-bottom: 1px solid var(--line);
+      position: sticky;
+      top: 0;
+      z-index: 50;
+    }
+
+     .app-shell {
+      display: grid;
+      /* 【优化】将侧边栏宽度从 360px 缩减至 280px，为右侧数据区释放更多空间 */
+      grid-template-columns: 280px minmax(0, 1fr);
+      gap: 1.5rem;
+      max-width: 1600px;
+      margin: 0 auto;
+      padding: 1.5rem;
+      min-height: calc(100vh - 73px);
+      align-items: start;
+    }
+
+    @media (max-width: 1024px) {
+      .app-shell { grid-template-columns: 1fr; padding: 1rem; gap: 1rem; }
+    }
+
+    /* 基础交互元素优化 */
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      min-height: 36px;
+      border-radius: 0.5rem;
+      border: 1px solid #cbd5e1;
+      background: #ffffff;
+      padding: 0.375rem 0.875rem;
+      color: #334155;
+      font-weight: 500;
+      font-size: 0.875rem;
+      white-space: nowrap;
+      transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+      box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+      cursor: pointer;
+    }
+
+    .btn:hover:not(:disabled) {
+      background: #f8fafc;
+      border-color: #94a3b8;
+      color: #0f172a;
+      transform: translateY(-1px);
+      box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03);
+    }
+
+    .btn:active:not(:disabled) { transform: translateY(0); box-shadow: none; }
+
+    .btn-primary {
+      border: none;
+      background: linear-gradient(145deg, #0d9488, #0f766e);
+      color: #ffffff;
+      box-shadow: 0 1px 3px rgba(15, 118, 110, 0.3);
+    }
+
+    .btn-primary:hover:not(:disabled) {
+      background: linear-gradient(145deg, #14b8a6, #0d9488);
+      color: #ffffff;
+      border: none;
+      box-shadow: 0 4px 12px rgba(15, 118, 110, 0.25);
+    }
+
+    .btn.view-tab { border-radius: 0.375rem; min-height: 32px; padding: 0.25rem 0.75rem; box-shadow: none; }
+    .btn.view-tab.btn-primary { box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
+
+    .btn:disabled { cursor: not-allowed; opacity: 0.6; filter: grayscale(100%); box-shadow: none; transform: none; }
+
+    .compact-input {
+      width: 100%;
+      min-height: 34px;
+      border: 1px solid #cbd5e1;
+      border-radius: 0.375rem;
+      background: #f8fafc;
+      padding: 0.375rem 0.75rem;
+      color: #1e293b;
+      font-size: 0.875rem;
+      outline: none;
+      transition: all 0.2s ease;
+    }
+
+    .compact-input:hover:not(:disabled) { border-color: #94a3b8; }
+    .compact-input:focus {
+      background: #ffffff;
+      border-color: #0f766e;
+      box-shadow: 0 0 0 3px var(--primary-ring);
+    }
+
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      min-height: 24px;
+      border-radius: 9999px;
+      border: 1px solid #e2e8f0;
+      background: #f1f5f9;
+      padding: 0.125rem 0.625rem;
+      color: #475569;
+      font-size: 0.75rem;
+      font-weight: 600;
+      letter-spacing: 0.025em;
+    }
+
+    /* 优化后的卡片视觉 */
+    .field-card {
+      border: 1px solid rgba(226, 232, 240, 0.8);
+      border-radius: 0.75rem;
+      background: rgba(255, 255, 255, 0.7);
+      backdrop-filter: blur(8px);
+      padding: 1.25rem;
+      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.02);
+      transition: box-shadow 0.3s ease, transform 0.3s ease;
+    }
+    .field-card:hover {
+      box-shadow: 0 4px 15px rgba(0, 0, 0, 0.03);
+      background: #ffffff;
+    }
+
+    .tree-row {
+      display: grid;
+      grid-template-columns: minmax(200px, 400px) minmax(180px, 1fr) 100px;
+      gap: 12px;
+      align-items: center;
+      min-height: 40px;
+      border-bottom: 1px solid #f1f5f9;
+      padding: 6px 12px;
+      transition: background-color 0.15s ease;
+    }
+    .tree-row:hover { background: #f0fdfa; }
+
+    @media (max-width: 760px) {
+      .tree-row { grid-template-columns: 1fr; gap: 6px; padding: 10px; }
+    }
+
+    /* 隐藏原生文件输入 */
+    .hidden-file { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; }
+
+    /* Dropzone 交互动画 */
+    #dropZone { transition: all 0.2s ease-in-out; }
+    #dropZone.drag-active { border-color: #0f766e; background-color: #f0fdfa; transform: scale(1.02); }
+  </style>
+</head>
+<body>
+  <header class="glass-header">
+    <div class="mx-auto flex max-w-[1600px] flex-col gap-4 px-4 py-3 lg:flex-row lg:items-center lg:justify-between lg:px-6">
+      <div class="flex items-center gap-3">
+        <!-- Logo/Icon 区域增加一点产品感 -->
+        <div class="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-primary-500 to-primary-700 text-white shadow-md">
+          <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M8 9l3 3-3 3m5 0h3M5 20h14a2 2 0 002-2V6a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+          </svg>
+        </div>
+        <div>
+          <h1 class="text-xl font-bold tracking-tight text-slate-900">Game Assistance <span class="font-normal text-slate-500">| ES3 存档修改器</span> <span class="text-xs font-semibold text-primary-600 bg-primary-50 px-1.5 py-0.5 rounded ml-1 border border-primary-100">v2.0.0</span></h1>
+          <p class="mt-0.5 text-xs text-slate-500">本地解析、编辑、下载，不上传存档。</p>
+        </div>
+      </div>
+      <div class="flex flex-wrap items-center gap-2.5">
+        <span id="statusBadge" class="badge">等待文件</span>
+        <a class="btn shadow-sm" href="https://github.com/Junquanzhong/ES3-Game-Assistance" target="_blank" rel="noreferrer">
+          <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-slate-700" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+            <path fill-rule="evenodd" d="M12 2C6.477 2 2 6.59 2 12.253c0 4.529 2.865 8.371 6.839 9.728.5.094.682-.222.682-.494 0-.244-.009-.89-.014-1.747-2.782.62-3.369-1.375-3.369-1.375-.455-1.186-1.11-1.502-1.11-1.502-.908-.636.069-.623.069-.623 1.004.072 1.532 1.057 1.532 1.057.892 1.567 2.341 1.115 2.91.852.091-.662.35-1.115.636-1.371-2.221-.259-4.556-1.138-4.556-5.064 0-1.119.39-2.034 1.03-2.751-.103-.26-.446-1.302.098-2.714 0 0 .84-.276 2.75 1.051A9.31 9.31 0 0 1 12 6.983a9.31 9.31 0 0 1 2.503.347c1.909-1.327 2.747-1.051 2.747-1.051.546 1.412.203 2.455.1 2.714.64.717 1.028 1.632 1.028 2.751 0 3.936-2.338 4.802-4.566 5.056.359.317.678.943.678 1.901 0 1.372-.013 2.477-.013 2.814 0 .274.18.593.688.493C19.138 20.621 22 16.781 22 12.253 22 6.59 17.523 2 12 2Z" clip-rule="evenodd" />
+          </svg>
+          GitHub
+        </a>
+        <label class="btn cursor-pointer shadow-sm" for="fileInput">
+          <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
+          </svg>
+          选择 .es3
+        </label>
+        <input id="fileInput" class="hidden-file" type="file" accept=".es3,.json,text/plain,application/json">
+        <button id="downloadBtn" class="btn btn-primary" disabled>
+          <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+          </svg>
+          下载存档
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <main class="app-shell">
+    <aside class="flex flex-col gap-4">
+      <section id="dropZone" class="group relative flex flex-col items-center justify-center rounded-xl border-2 border-dashed border-slate-300 bg-slate-50/50 py-8 px-4 text-center hover:bg-slate-50 hover:border-slate-400">
+        <div class="rounded-full bg-white p-3 shadow-sm group-hover:scale-110 transition-transform duration-300">
+          <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+          </svg>
+        </div>
+        <div class="mt-4 text-sm font-semibold text-slate-700">将 GameData.es3 拖拽至此处</div>
+        <div class="mt-1.5 text-xs text-slate-500 max-w-[220px]">支持明文 JSON。操作前请务必<span class="text-primary-600">备份原存档</span></div>
+      </section>
+
+      <section class="field-card">
+        <div class="flex items-center justify-between border-b border-slate-100 pb-2.5">
+          <h2 class="text-sm font-bold text-slate-800 flex items-center gap-1.5">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+            文件信息
+          </h2>
+          <button id="resetBtn" class="btn h-7 min-h-0 px-2.5 py-0 text-xs shadow-none border-slate-200" disabled>重置</button>
+        </div>
+        <dl class="mt-3 space-y-2.5 text-xs">
+          <div class="flex justify-between gap-3 items-center">
+            <dt class="text-slate-500">文件名</dt>
+            <dd id="fileName" class="max-w-[190px] truncate font-medium text-slate-900">-</dd>
+          </div>
+          <div class="flex justify-between gap-3 items-center">
+            <dt class="text-slate-500">文件大小</dt>
+            <dd id="fileSize" class="font-medium text-slate-900">-</dd>
+          </div>
+          <div class="flex justify-between gap-3 items-center">
+            <dt class="text-slate-500">解析字段</dt>
+            <dd id="fieldCount" class="font-medium text-slate-900">-</dd>
+          </div>
+          <div class="flex justify-between gap-3 items-center">
+            <dt class="text-slate-500">游戏版本</dt>
+            <dd id="versionText" class="font-medium text-slate-900">-</dd>
+          </div>
+          <div class="flex justify-between gap-3 items-center pt-2 border-t border-slate-100/50">
+            <dt class="text-slate-500 font-medium">未保存修改</dt>
+            <dd class="flex items-center gap-1.5">
+              <span class="relative flex h-2 w-2">
+                <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary-400 opacity-75"></span>
+                <span class="relative inline-flex rounded-full h-2 w-2 bg-primary-500"></span>
+              </span>
+              <span id="changeCount" class="font-bold text-primary-600 text-sm">0</span>
+            </dd>
+          </div>
+        </dl>
+      </section>
+
+      <section class="field-card">
+        <div class="flex items-center justify-between gap-2 border-b border-slate-100 pb-2.5">
+          <h2 class="text-sm font-bold text-slate-800">模板识别</h2>
+          <span id="templateBadge" class="badge">未识别</span>
+        </div>
+        <div id="quickFields" class="mt-3 space-y-3 text-xs leading-5">
+          <p class="text-slate-500">载入样例存档后，系统将自动映射核心字段。未知含义的数据我们坚持保留原始键名，拒绝误导性映射。</p>
+        </div>
+      </section>
+
+      <section class="field-card">
+        <h2 class="text-sm font-bold text-slate-800 border-b border-slate-100 pb-2.5">系统日志</h2>
+        <div id="messages" class="mt-3 space-y-2 text-xs leading-5 text-slate-500 bg-slate-50 rounded-lg p-3 border border-slate-100 max-h-40 overflow-y-auto">
+          <p>请选择 `.es3` 文件开始作业。</p>
+        </div>
+      </section>
+    </aside>
+
+    <section class="min-w-0 flex flex-col gap-4">
+      <div class="flex flex-col gap-3 rounded-xl border border-slate-200 bg-white p-2 shadow-sm lg:flex-row lg:items-center lg:justify-between">
+        <div class="flex flex-wrap items-center gap-1 bg-slate-100 p-1 rounded-lg">
+          <button class="btn view-tab btn-primary border-none" data-view="quick">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 opacity-70 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>
+            快捷控制台
+          </button>
+          <button class="btn view-tab border-none bg-transparent hover:bg-white shadow-none text-slate-500 hover:text-slate-800" data-view="tree">通用树视图</button>
+          <button class="btn view-tab border-none bg-transparent hover:bg-white shadow-none text-slate-500 hover:text-slate-800" data-view="raw">JSON 源码</button>
+        </div>
+        <div class="flex flex-col gap-2 sm:flex-row sm:items-center px-1">
+          <div class="relative w-full sm:w-64">
+            <div class="absolute inset-y-0 left-0 flex items-center pl-2.5 pointer-events-none">
+              <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
+            </div>
+            <input id="searchInput" class="compact-input w-full pl-8" type="search" placeholder="检索节点或路径...">
+          </div>
+          <div class="flex gap-1">
+            <button id="expandAllBtn" class="btn h-9 px-3" title="全部展开" disabled><svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4" /></svg></button>
+            <button id="collapseAllBtn" class="btn h-9 px-3" title="全部折叠" disabled><svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 14h6m0 0v6m0-6l-7 7m17-11h-6m0 0V4m0 6l7-7M4 10h6m0 0V4m0 6l-7-7m17 11h-6m0 0v6m0-6l7 7" /></svg></button>
+          </div>
+        </div>
+      </div>
+
+      <!-- 空状态插画 -->
+      <div id="emptyState" class="flex flex-col items-center justify-center rounded-xl border border-slate-200 bg-white py-24 text-center shadow-sm">
+        <svg xmlns="http://www.w3.org/2000/svg" class="h-16 w-16 text-slate-200 mb-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+        </svg>
+        <h2 class="text-lg font-bold text-slate-800">等待载入 ES3 存档</h2>
+        <p class="mt-2 max-w-md text-sm leading-6 text-slate-500">当前版本深度支持明文 JSON ES3 格式。加密或压缩文件会给出明确提示，复杂数组编辑建议切换至“通用树视图”。</p>
+      </div>
+
+      <div id="quickView" class="hidden rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
+        <div class="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between border-b border-slate-100 pb-4">
+          <div>
+            <h2 class="text-lg font-bold text-slate-900 flex items-center gap-2">
+              快捷表单
+              <span class="flex h-5 items-center rounded bg-primary-50 px-1.5 text-[10px] font-bold tracking-wider text-primary-600 uppercase border border-primary-100">Live</span>
+            </h2>
+            <p class="mt-1 text-xs text-slate-500">常用资源可视化管理，数据修改将实时映射至内存树结构中。</p>
+          </div>
+          <button id="applyPresetBtn" class="btn text-primary-700 border-primary-200 bg-primary-50 hover:bg-primary-100" disabled>
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>
+            注入极限资源 (999999)
+          </button>
+        </div>
+        <div id="quickViewFields" class="grid gap-4 md:grid-cols-2 xl:grid-cols-3"></div>
+      </div>
+
+      <div id="treeView" class="hidden overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
+        <div class="grid grid-cols-[minmax(200px,400px)_minmax(180px,1fr)_100px] gap-3 border-b border-slate-200 bg-slate-50 px-3 py-2.5 text-xs font-bold uppercase tracking-wider text-slate-500 max-md:grid-cols-1">
+          <div class="pl-2">节点层级 (Node Path)</div>
+          <div>内存值 (Value)</div>
+          <div>数据类型 (Type)</div>
+        </div>
+        <div id="treeContainer" class="max-h-[calc(100vh-210px)] overflow-auto bg-white pb-2"></div>
+      </div>
+
+      <div id="rawView" class="hidden rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+        <div class="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between border-b border-slate-100 pb-3">
+          <div>
+            <h2 class="text-lg font-bold text-slate-900 flex items-center gap-2">
+              <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4" /></svg>
+              原始 JSON
+            </h2>
+            <p class="mt-1 text-xs text-slate-500">高阶骇客模式。在此处的硬编码修改需要手动点击应用，系统将重新构建抽象语法树。</p>
+          </div>
+          <button id="applyRawBtn" class="btn btn-primary" disabled>
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4" /></svg>
+            编译并映射
+          </button>
+        </div>
+        <textarea id="rawEditor" class="mono h-[calc(100vh-260px)] min-h-[400px] w-full resize-y rounded-lg border border-slate-300 bg-slate-50 p-4 text-xs leading-6 text-slate-700 outline-none transition-colors focus:border-primary-500 focus:bg-white focus:ring-4 focus:ring-primary-500/10" spellcheck="false"></textarea>
+      </div>
+    </section>
+  </main>
+
+  <!-- 保留原有的模版数据引入逻辑 -->
+  <script src="templates/wjysj-reference-data.js"></script>
+  <script src="templates/wjysj-template.js"></script>
+  
+  <script>
+    const state = {
+      fileName: "",
+      fileSize: 0,
+      originalText: "",
+      data: null,
+      originalData: null,
+      expanded: new Set(),
+      currentView: "quick",
+      changes: new Map(),
+      search: "",
+      inventorySearch: "",
+      inventoryType: "all",
+      inventorySearchCursor: 0
+    };
+
+    const quickFieldDefs = [
+      { label: "铜钱数量", hint: "CGNum[0]，与家族基础数值中的铜钱一致", path: ["CGNum", "value", 0], type: "string-number" },
+      { label: "元宝数量", hint: "CGNum[1]，与家族基础数值中的元宝一致", path: ["CGNum", "value", 1], type: "string-number" },
+      { label: "家族名", hint: "FamilyData[1]", path: ["FamilyData", "value", 1], type: "string" },
+      { label: "FamilyData[2]", hint: "样例值 42", path: ["FamilyData", "value", 2], type: "string-number" },
+      { label: "FamilyData[3]", hint: "样例值 682", path: ["FamilyData", "value", 3], type: "string-number" },
+      { label: "仓库剩余容量", hint: "FamilyData[5]，资料标注为仓库剩余容量", path: ["FamilyData", "value", 5], type: "string-number" },
+      { label: "当前年", hint: "Time_now[0]", path: ["Time_now", "value", 0], type: "number" },
+      { label: "当前月", hint: "Time_now[1]", path: ["Time_now", "value", 1], type: "number" },
+      { label: "当前日", hint: "Time_now[2]", path: ["Time_now", "value", 2], type: "number" },
+      { label: "本月收入[0]", hint: "GetMoney_Month[0]", path: ["GetMoney_Month", "value", 0], type: "number" },
+      { label: "本月收入[1]", hint: "GetMoney_Month[1]", path: ["GetMoney_Month", "value", 1], type: "number" },
+      { label: "账目[0]", hint: "ZhiZeData_ZhangMu[0]", path: ["ZhiZeData_ZhangMu", "value", 0], type: "number" },
+      { label: "MemberNumWillDead", hint: "整数", path: ["MemberNumWillDead", "value"], type: "number" },
+      { label: "NuLiNum", hint: "整数", path: ["NuLiNum", "value"], type: "number" },
+      { label: "SceneID", hint: "场景 ID", path: ["SceneID", "value"], type: "string" }
+    ];
+
+    const itemCodeMap = {
+      "0": { name: "香燭", type: "祭品" }, "1": { name: "肥料", type: "肥料" }, "2": { name: "糧食", type: "糧肉" },
+      "3": { name: "蔬菜", type: "糧肉" }, "4": { name: "肉食", type: "糧肉" }, "8": { name: "青梅", type: "美食 健+1" },
+      "24": { name: "花緞", type: "布匹" }, "25": { name: "雲錦", type: "布匹" }, "26": { name: "蜀錦", type: "布匹" },
+      "27": { name: "篩絹", type: "布匹" }, "28": { name: "天香布", type: "布匹" }, "47": { name: "胭脂", type: "香粉" },
+      "48": { name: "烏膏", type: "香粉" }, "53": { name: "花釵(女)", type: "珠寶 魅+3" }, "54": { name: "鉺鐺(女)", type: "珠寶 魅+4" },
+      "55": { name: "步搖(女)", type: "珠寶 魅+5" }, "56": { name: "金簪(女)", type: "珠寶 魅+6" }, "57": { name: "華勝(女)", type: "珠寶 魅+7" },
+      "58": { name: "宮絳(女)", type: "珠寶 魅+8" }, "59": { name: "梳篦(女)", type: "珠寶 魅+9" }, "60": { name: "臂釧(女)", type: "珠寶 魅+10" },
+      "61": { name: "瓔珞(女)", type: "珠寶 魅+11" }, "63": { name: "扳指(男)", type: "珠寶 魅+4" }, "64": { name: "玉佩(男)", type: "珠寶 魅+8" },
+      "65": { name: "帶鉤(男)", type: "珠寶 魅+7" }, "76": { name: "無名字軸", type: "書法" }, "78": { name: "名家字軸", type: "書法" },
+      "79": { name: "名家碑帖", type: "書法" }, "80": { name: "傳世字帖", type: "書法" }, "81": { name: "傳世碑帖", type: "書法" },
+      "82": { name: "無名山水圖", type: "丹青" }, "83": { name: "無名江山圖", type: "丹青" }, "84": { name: "名家山水圖", type: "丹青" },
+      "85": { name: "名家江山圖", type: "丹青" }, "86": { name: "傳世山水圖", type: "丹青" }, "87": { name: "傳世江山圖", type: "丹青" },
+      "88": { name: "玉圭", type: "文玩" }, "89": { name: "玉碗", type: "文玩" }, "90": { name: "玉瓶", type: "文玩" },
+      "91": { name: "玉琥", type: "文玩" }, "92": { name: "玉璧", type: "文玩" }, "93": { name: "玉璜", type: "文玩" },
+      "94": { name: "玉琮", type: "文玩" }, "95": { name: "玉山", type: "文玩" }, "96": { name: "玉屏", type: "文玩" },
+      "107": { name: "三尖兩刃刀", type: "武器 武+7" }, "108": { name: "三尺劍", type: "武器 武+8" }, "109": { name: "軟劍", type: "武器 武+9" },
+      "116": { name: "紅釉盞", type: "茶具" }, "117": { name: "青瓷壺", type: "茶具" }, "118": { name: "楠木茶盤", type: "茶具" },
+      "119": { name: "檀木茶盤", type: "茶具" }, "120": { name: "玉壺", type: "茶具" }, "124": { name: "金薰球", type: "香具" },
+      "125": { name: "檀木香盒", type: "香具" }, "126": { name: "金香盒", type: "香具" }, "127": { name: "檀木香筒", type: "香具" },
+      "128": { name: "金香爐", type: "香具" }, "131": { name: "扁瓶", type: "瓷器" }, "132": { name: "瓷枕", type: "瓷器" },
+      "133": { name: "琮式瓶", type: "瓷器" }, "134": { name: "梅瓶", type: "瓷器" }, "135": { name: "鳳尾瓶", type: "瓷器" },
+      "139": { name: "茱萸酒", type: "美酒" }, "141": { name: "荔枝酒", type: "美酒" }, "142": { name: "桂花酒", type: "美酒" },
+      "143": { name: "琥珀酒", type: "美酒" }, "148": { name: "琵琶", type: "樂器" }, "149": { name: "月琴", type: "樂器" },
+      "150": { name: "中琴", type: "樂器" }, "151": { name: "伏羲琴", type: "樂器" }, "153": { name: "狼皮", type: "毛皮" },
+      "154": { name: "鹿皮", type: "毛皮" }, "155": { name: "狐皮", type: "毛皮" }, "156": { name: "虎皮", type: "毛皮" },
+      "186": { name: "大學", type: "書籍 文+4" }, "187": { name: "中庸", type: "書籍 文+4" }, "188": { name: "論語", type: "書籍 文+4" },
+      "189": { name: "孟子", type: "書籍 文+4" }, "190": { name: "法言", type: "書籍 文+4" }, "191": { name: "潛夫論", type: "書籍 文+5" },
+      "198": { name: "陰符槍譜", type: "書籍 武+3" }, "202": { name: "拳經", type: "書籍 武+4" }, "203": { name: "射經", type: "書籍 武+4" },
+      "204": { name: "劍經", type: "書籍 武+5" }, "205": { name: "角力記", type: "書籍 武+5" }, "211": { name: "貿易賦", type: "書籍 商+4" },
+      "212": { name: "食貨志", type: "書籍 商+4" }, "213": { name: "輕重篇", type: "書籍 商+5" }, "214": { name: "考工記", type: "書籍 商+5" },
+      "215": { name: "商君書", type: "書籍 商+6" }, "216": { name: "陶朱公生意經", type: "書籍 商+6" }, "217": { name: "商經", type: "書籍 商+8" },
+      "230": { name: "廣陵散", type: "書籍 藝+4" }, "231": { name: "陽春白雪", type: "書籍 藝+4" }, "235": { name: "琴賦", type: "書籍 藝+5" },
+      "236": { name: "溪山琴況", type: "書籍 藝+5" }, "237": { name: "太古遺音", type: "書籍 藝+5" }, "239": { name: "史記", type: "書籍 計+1" },
+      "240": { name: "間書", type: "書籍 計+2" }, "241": { name: "捭闔", type: "書籍 計+2" }, "242": { name: "飛箝", type: "書籍 計+3" },
+      "244": { name: "揣篇", type: "書籍 計+4" }, "246": { name: "太白陰經", type: "書籍 計+5" }, "248": { name: "韓非子", type: "書籍 計+6" },
+      "249": { name: "孫子兵法", type: "書籍 計+6" }, "252": { name: "山海經", type: "書籍 巫+1" }, "254": { name: "巫陽古書", type: "書籍 巫+2" },
+      "257": { name: "千金方", type: "書籍 醫+1" }, "258": { name: "溫熱經緯", type: "書籍 醫+1" }, "261": { name: "金匱略要", type: "書籍 醫+1" },
+      "262": { name: "神農本草", type: "書籍 醫+1" }, "264": { name: "黃帝內經", type: "書籍 醫+2" }, "266": { name: "五官雜論", type: "書籍 相+1" },
+      "267": { name: "聽聲 相行", type: "書籍 相+2" }, "268": { name: "永樂百問", type: "書籍 相+2" }, "277": { name: "長物志", type: "書籍 工+1" },
+      "281": { name: "墨經", type: "書籍 工+3" }, "284": { name: "雞蛋", type: "美食 健+1心+1" }
+    };
+
+    const el = {
+      fileInput: document.getElementById("fileInput"),
+      dropZone: document.getElementById("dropZone"),
+      statusBadge: document.getElementById("statusBadge"),
+      downloadBtn: document.getElementById("downloadBtn"),
+      resetBtn: document.getElementById("resetBtn"),
+      fileName: document.getElementById("fileName"),
+      fileSize: document.getElementById("fileSize"),
+      fieldCount: document.getElementById("fieldCount"),
+      versionText: document.getElementById("versionText"),
+      changeCount: document.getElementById("changeCount"),
+      templateBadge: document.getElementById("templateBadge"),
+      quickFields: document.getElementById("quickFields"),
+      quickViewFields: document.getElementById("quickViewFields"),
+      messages: document.getElementById("messages"),
+      emptyState: document.getElementById("emptyState"),
+      quickView: document.getElementById("quickView"),
+      treeView: document.getElementById("treeView"),
+      rawView: document.getElementById("rawView"),
+      treeContainer: document.getElementById("treeContainer"),
+      rawEditor: document.getElementById("rawEditor"),
+      searchInput: document.getElementById("searchInput"),
+      expandAllBtn: document.getElementById("expandAllBtn"),
+      collapseAllBtn: document.getElementById("collapseAllBtn"),
+      applyRawBtn: document.getElementById("applyRawBtn"),
+      applyPresetBtn: document.getElementById("applyPresetBtn")
+    };
+
+    function clone(value) {
+      return JSON.parse(JSON.stringify(value));
+    }
+
+    function formatBytes(bytes) {
+      if (!bytes) return "0 B";
+      const units = ["B", "KB", "MB", "GB"];
+      const index = Math.min(Math.floor(Math.log(bytes) / Math.log(1024)), units.length - 1);
+      return `${(bytes / Math.pow(1024, index)).toFixed(index === 0 ? 0 : 1)} ${units[index]}`;
+    }
+
+    function isRecord(value) {
+      return value !== null && typeof value === "object" && !Array.isArray(value);
+    }
+
+    function getByPath(root, path) {
+      return path.reduce((target, part) => target == null ? undefined : target[part], root);
+    }
+
+    function setByPath(root, path, nextValue) {
+      const last = path[path.length - 1];
+      const parent = getByPath(root, path.slice(0, -1));
+      if (parent == null) return false;
+      parent[last] = nextValue;
+      return true;
+    }
+
+    function pathToKey(path) {
+      return path.map(String).join(".");
+    }
+
+    function displayPath(path) {
+      return path.map((part, index) => {
+        if (typeof part === "number" || /^\d+$/.test(part)) return `[${part}]`;
+        return index === 0 ? part : `.${part}`;
+      }).join("");
+    }
+
+    function valueKind(value) {
+      if (Array.isArray(value)) return "array";
+      if (value === null) return "null";
+      return typeof value;
+    }
+
+    function parseInputValue(raw, expectedType, currentValue) {
+      if (expectedType === "number") {
+        if (raw.trim() === "") throw new Error("数字不能为空");
+        const next = Number(raw);
+        if (!Number.isFinite(next)) throw new Error("请输入有效数字");
+        return next;
+      }
+
+      if (expectedType === "string-number") {
+        if (raw.trim() === "") throw new Error("数字字符串不能为空");
+        const next = Number(raw);
+        if (!Number.isFinite(next)) throw new Error("请输入有效数字");
+        return String(raw.trim());
+      }
+
+      if (expectedType === "boolean") {
+        return raw === "true";
+      }
+
+      if (typeof currentValue === "number") {
+        const next = Number(raw);
+        if (!Number.isFinite(next)) throw new Error("请输入有效数字");
+        return next;
+      }
+
+      if (typeof currentValue === "boolean") {
+        return raw === "true";
+      }
+
+      if (currentValue === null) {
+        return raw === "" ? null : raw;
+      }
+
+      return raw;
+    }
+
+    function detectEs3Json(data) {
+      if (!isRecord(data)) return false;
+      const keys = Object.keys(data);
+      if (!keys.length) return false;
+      const typedEntries = keys.filter(key => isRecord(data[key]) && "__type" in data[key] && "value" in data[key]);
+      return typedEntries.length >= Math.max(3, Math.floor(keys.length * 0.5));
+    }
+
+    function detectWjysj(data) {
+      return Boolean(
+        detectEs3Json(data) &&
+        data.VersionID &&
+        data.FamilyData &&
+        data.Prop_have &&
+        data.Time_now
+      );
+    }
+
+    function matchesTemplate(data, template) {
+      if (!detectEs3Json(data) || !template?.detector?.requiredKeys) return false;
+      return template.detector.requiredKeys.every(key => key in data);
+    }
+
+    function getActiveTemplate() {
+      const templates = window.GAME_SAVE_TEMPLATES || {};
+      const wjysj = templates.wjysj;
+      if (state.data && matchesTemplate(state.data, wjysj)) return wjysj;
+      if (state.data && detectWjysj(state.data)) {
+        return {
+          id: "wjysj-fallback",
+          name: "吾今有世家",
+          quickFields: quickFieldDefs,
+          compactGroups: [
+            { key: "FamilyData", labels: ["祖籍/郡城复合ID", "家族姓氏", "家族等级", "经验值", "家族对朝廷影响", "仓库剩余容量", "槽位6", "槽位7", "皇室出家 0否1是", "槽位9"] },
+            { key: "CGNum", labels: ["铜钱数量", "元宝数量", "槽位2", "槽位3"] },
+            { key: "ShiJia_king", labels: ["皇族姓氏", "关系", "等级", "槽位3", "槽位4", "好感复合字段"] },
+            { key: "Cost_King", labels: ["槽位0", "槽位1", "槽位2", "槽位3", "槽位4", "槽位5", "槽位6", "槽位7", "槽位8"] },
+            { key: "IdIndex", labels: ["成员ID序号", "其他ID序号", "槽位2"] },
+            { key: "PlayTimeRun", labels: ["槽位0", "槽位1"] }
+          ],
+          citySlots: [
+            { index: 7, label: "府邸名" },
+            { index: 8, label: "本府邸人数" },
+            { index: 9, label: "剩余可招募人数" },
+            { index: 10, label: "已安排仆人数" },
+            { index: 11, label: "本府邸成员数量" },
+            { index: 14, label: "武庙加成" },
+            { index: 27, label: "安全" },
+            { index: 28, label: "便捷" },
+            { index: 29, label: "税率/标记" }
+          ],
+          horseLabels: ["花色", "年龄", "力量", "速度", "智商", "主人/人物编号", "马匹信息"],
+          memberSections: [
+            { key: "Member_now", title: "本家成员 Member_now", nameSlot: 4, editableSlots: [5, 6, 11, 16, 20, 21, 24, 27, 29] },
+            { key: "Member_King", title: "皇族成员 Member_King", nameSlot: 2, editableSlots: [3, 4, 5, 6, 7, 8, 14, 16, 18, 19, 20, 27] }
+          ],
+          presetPaths: [
+            ["CGNum", "value", 0],
+            ["CGNum", "value", 1],
+            ["FamilyData", "value", 5],
+            ["GetMoney_Month", "value", 0],
+            ["GetMoney_Month", "value", 1],
+            ["ZhiZeData_ZhangMu", "value", 0]
+          ],
+          itemCodeMap
+        };
+      }
+      return null;
+    }
+
+    function setMessage(items) {
+      el.messages.innerHTML = "";
+      items.forEach(item => {
+        const p = document.createElement("p");
+        const icon = item.type === "error" ? "🔴" : item.type === "warn" ? "🟠" : "🟢";
+        p.className = item.type === "error" ? "text-red-600 font-medium" : item.type === "warn" ? "text-amber-600 font-medium" : "text-slate-600";
+        p.innerHTML = `<span class="mr-1">${icon}</span> ${item.text}`;
+        el.messages.appendChild(p);
+      });
+      el.messages.scrollTop = el.messages.scrollHeight;
+    }
+
+    async function loadFile(file) {
+      const bytes = await file.arrayBuffer();
+      const head = new Uint8Array(bytes.slice(0, 4));
+      if (head[0] === 0x1f && head[1] === 0x8b) {
+        throw new Error("检测到 Gzip 压缩文件。当前版本暂不解压，后续会加入压缩解析。");
+      }
+      if (head[0] !== 0x7b && head[0] !== 0xef && head[0] !== 0x5b) {
+        throw new Error("文件头不是 JSON。它可能被加密、压缩，或不是 Easy Save 3 明文 JSON。");
+      }
+
+      const text = new TextDecoder("utf-8", { fatal: false }).decode(bytes).replace(/^\uFEFF/, "");
+      let parsed;
+      try {
+        parsed = JSON.parse(text);
+      } catch (error) {
+        throw new Error(`JSON 解析失败：${error.message}`);
+      }
+
+      state.fileName = file.name;
+      state.fileSize = file.size;
+      state.originalText = text;
+      state.data = parsed;
+      state.originalData = clone(parsed);
+      state.expanded = new Set(Object.keys(parsed).slice(0, 16));
+      state.changes.clear();
+      el.rawEditor.value = JSON.stringify(state.data, null, 2);
+      refreshAll();
+      setMessage([
+        { type: "info", text: "AST 抽象语法树构建成功，已映射到可视化面板。" },
+        { type: "warn", text: "保存前请确认已经备份原存档。系统生成的文件默认追加 _modified，阻断无意识覆盖风险。" }
+      ]);
+    }
+
+    function refreshAll() {
+      const loaded = Boolean(state.data);
+      const activeTemplate = loaded ? getActiveTemplate() : null;
+      el.emptyState.classList.toggle("hidden", loaded);
+      el.quickView.classList.toggle("hidden", !loaded || state.currentView !== "quick");
+      el.treeView.classList.toggle("hidden", !loaded || state.currentView !== "tree");
+      el.rawView.classList.toggle("hidden", !loaded || state.currentView !== "raw");
+      el.downloadBtn.disabled = !loaded;
+      el.resetBtn.disabled = !loaded;
+      el.expandAllBtn.disabled = !loaded;
+      el.collapseAllBtn.disabled = !loaded;
+      el.applyRawBtn.disabled = !loaded;
+      el.applyPresetBtn.disabled = !loaded || !activeTemplate;
+      
+      el.statusBadge.textContent = loaded ? "已解析" : "等待文件";
+      el.statusBadge.className = loaded ? "badge border-primary-200 bg-primary-50 text-primary-700 shadow-sm" : "badge";
+      
+      el.fileName.textContent = loaded ? state.fileName : "-";
+      el.fileSize.textContent = loaded ? formatBytes(state.fileSize) : "-";
+      el.fieldCount.textContent = loaded && isRecord(state.data) ? Object.keys(state.data).length : "-";
+      el.versionText.textContent = loaded ? getByPath(state.data, ["VersionID", "value"]) || "-" : "-";
+      
+      // Update Unsaved Changes animation
+      const changeCountStr = String(state.changes.size);
+      if (el.changeCount.textContent !== changeCountStr) {
+        el.changeCount.textContent = changeCountStr;
+        el.changeCount.parentElement.classList.add('scale-110', 'transition-transform');
+        setTimeout(() => el.changeCount.parentElement.classList.remove('scale-110'), 200);
+      }
+      
+      el.templateBadge.textContent = activeTemplate ? activeTemplate.name : "未识别";
+      el.templateBadge.className = activeTemplate ? "badge border-indigo-200 bg-indigo-50 text-indigo-700 shadow-sm" : "badge";
+
+      document.querySelectorAll(".view-tab").forEach(btn => {
+        const isActive = btn.dataset.view === state.currentView;
+        if(isActive) {
+          btn.classList.add("bg-white", "text-slate-800", "shadow-sm", "border", "border-slate-200");
+          btn.classList.remove("text-slate-500", "hover:bg-white", "border-transparent", "bg-transparent");
+        } else {
+          btn.classList.add("text-slate-500", "hover:bg-white", "bg-transparent");
+          btn.classList.remove("bg-white", "text-slate-800", "shadow-sm", "border", "border-slate-200");
+        }
+      });
+
+      if (loaded) {
+        renderQuickFields();
+        if (state.currentView === "tree") renderTree();
+        if (state.currentView === "raw") el.rawEditor.value = JSON.stringify(state.data, null, 2);
+      }
+    }
+
+    function renderQuickFields() {
+      const loaded = Boolean(state.data);
+      const activeTemplate = loaded ? getActiveTemplate() : null;
+      el.quickFields.innerHTML = "";
+      el.quickViewFields.innerHTML = "";
+
+      if (!loaded) {
+        const p = document.createElement("p");
+        p.className = "text-slate-500";
+        p.textContent = "载入样例存档后，系统将自动映射核心字段。";
+        el.quickFields.appendChild(p);
+        return;
+      }
+
+      const intro = document.createElement("div");
+      intro.className = "space-y-1.5 bg-slate-50 p-3 rounded-lg border border-slate-100";
+      intro.innerHTML = `
+        <p class="text-slate-600 font-medium">✨ 识别到 ${activeTemplate ? `<span class="text-indigo-600">《${activeTemplate.name}》</span> 模板规则` : "通用 ES3 JSON 结构"}。</p>
+        <p class="text-slate-500 text-xs">物品数量请在通用树中编辑 <span class="mono bg-slate-200 px-1 rounded">Prop_have.value</span>，每项格式需遵守 <span class="mono"> [物品ID, 数量] </span> 规范。</p>
+      `;
+      el.quickFields.appendChild(intro);
+
+      const fieldDefs = activeTemplate?.quickFields || quickFieldDefs;
+      fieldDefs.forEach(def => {
+        const value = getByPath(state.data, def.path);
+        const card = document.createElement("label");
+        card.className = "field-card block relative overflow-hidden group";
+        // 增添左侧装饰条
+        card.innerHTML = `
+          <div class="absolute left-0 top-0 bottom-0 w-1 bg-slate-200 group-hover:bg-primary-500 transition-colors"></div>
+          <span class="block text-sm font-bold text-slate-800">${def.label}</span>
+          <span class="mt-1 block min-h-5 text-[11px] text-slate-400 font-mono">${def.hint}</span>
+        `;
+        const input = createInputForValue(value, def.path, def.type);
+        input.classList.add("mt-3");
+        card.appendChild(input);
+        el.quickViewFields.appendChild(card);
+      });
+
+      const propSummary = document.createElement("div");
+      propSummary.className = "field-card md:col-span-2 xl:col-span-3 bg-gradient-to-r from-slate-50 to-white";
+      const props = getByPath(state.data, ["Prop_have", "value"]);
+      propSummary.innerHTML = `
+        <div class="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+          <div>
+            <div class="text-sm font-bold text-slate-800 flex items-center gap-2">
+              <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" /></svg>
+              背包镜像 (Prop_have)
+            </div>
+            <div class="mt-1 text-xs text-slate-500">当前快照包含 <span class="font-bold text-slate-700">${Array.isArray(props) ? props.length : 0}</span> 项实体。底层 ID 已被隔离保护以防越权篡改。</div>
+          </div>
+          <button class="btn btn-primary" type="button" data-open-path="Prop_have">在通用树中展开定位</button>
+        </div>
+      `;
+      el.quickViewFields.appendChild(propSummary);
+
+      renderInventoryEditor(activeTemplate);
+      renderCompactArraySection("抽象数据族 (Base Value)", activeTemplate?.compactGroups || []);
+      renderCityEditor(activeTemplate);
+      (activeTemplate?.memberSections || []).forEach(section => {
+        renderMemberEditor(section.key, section.title, section.nameSlot, section.editableSlots, section.slotLabels || {});
+      });
+      renderHorseEditor(activeTemplate);
+    }
+
+    function appendSection(title, description) {
+      const section = document.createElement("section");
+      section.className = "field-card md:col-span-2 xl:col-span-3 !p-0 overflow-hidden border-slate-200";
+      const heading = document.createElement("div");
+      heading.className = "p-4 border-b border-slate-100 bg-slate-50/50 flex flex-col gap-1";
+      const h3 = document.createElement("h3");
+      h3.className = "text-sm font-bold text-slate-800";
+      h3.textContent = title;
+      const p = document.createElement("p");
+      p.className = "text-xs leading-5 text-slate-500";
+      p.textContent = description;
+      heading.appendChild(h3);
+      heading.appendChild(p);
+      section.appendChild(heading);
+      
+      const content = document.createElement("div");
+      content.className = "p-4";
+      section.appendChild(content);
+      
+      el.quickViewFields.appendChild(section);
+      return content;
+    }
+
+    function appendOpenTreeButton(container, key) {
+      const button = document.createElement("button");
+      button.className = "btn mt-4 w-full bg-slate-50 border-dashed border-slate-300 text-slate-500 hover:text-slate-800 hover:border-slate-400";
+      button.type = "button";
+      button.dataset.openPath = key;
+      button.innerHTML = `在节点树中深度检查 <span class="mono font-bold">${key}</span>`;
+      container.appendChild(button);
+    }
+
+    function renderCompactArraySection(title, groups) {
+      const container = appendSection(title, "仅暴露确定语义的一维数组序列；未解析槽位执行只读保护。");
+      groups.forEach(group => {
+        const values = getByPath(state.data, [group.key, "value"]);
+        if (!Array.isArray(values)) return;
+        const block = document.createElement("div");
+        block.className = "mb-4 rounded-xl border border-slate-100 bg-white p-4 shadow-[0_1px_2px_rgba(0,0,0,0.02)] last:mb-0 hover:border-primary-200 transition-colors";
+        const name = document.createElement("div");
+        name.className = "mb-3 text-xs font-bold text-slate-800 mono bg-slate-100 inline-block px-2 py-1 rounded";
+        name.textContent = group.key;
+        block.appendChild(name);
+        const grid = document.createElement("div");
+        grid.className = "grid gap-3 md:grid-cols-2 xl:grid-cols-3";
+        values.forEach((value, index) => {
+          const label = document.createElement("label");
+          label.className = "block group";
+          const span = document.createElement("span");
+          span.className = "mb-1.5 block text-[11px] font-semibold text-slate-400 uppercase tracking-wider group-hover:text-primary-600 transition-colors";
+          span.textContent = group.labels[index] || `SLOT [${index}]`;
+          label.appendChild(span);
+          label.appendChild(createInputForValue(value, [group.key, "value", index], typeof value === "number" ? "number" : "string"));
+          grid.appendChild(label);
+        });
+        block.appendChild(grid);
+        container.appendChild(block);
+      });
+    }
+
+    function renderInventoryEditor(template) {
+      const props = getByPath(state.data, ["Prop_have", "value"]);
+      if (!Array.isArray(props)) return;
+      const itemMap = template?.itemCodeMap || itemCodeMap;
+      const container = appendSection("物品序列 Prop_have", "矩阵结构 [物品ID, 数量]。系统执行 ID 锁定以防止字典映射错乱。");
+      appendInventoryAddControls(container, props, itemMap);
+      const filteredRows = getFilteredInventoryRows(props, itemMap);
+      appendInventoryFilterControls(container, props, filteredRows, itemMap);
+      const wrap = document.createElement("div");
+      wrap.className = "max-h-96 overflow-auto rounded-xl border border-slate-200 shadow-sm relative";
+      const table = document.createElement("table");
+      table.className = "w-full min-w-[520px] text-left text-xs";
+      table.innerHTML = `
+        <thead class="sticky top-0 bg-white/95 backdrop-blur shadow-sm text-slate-500 z-10">
+          <tr>
+            <th class="w-16 px-4 py-3 font-medium uppercase tracking-wider">Index</th>
+            <th class="px-4 py-3 font-medium uppercase tracking-wider">UID</th>
+            <th class="px-4 py-3 font-medium uppercase tracking-wider">名称</th>
+            <th class="px-4 py-3 font-medium uppercase tracking-wider">分类标签</th>
+            <th class="px-4 py-3 font-medium uppercase tracking-wider w-32">数值</th>
+            <th class="px-4 py-3 font-medium uppercase tracking-wider w-20 text-right">操作</th>
+          </tr>
+        </thead>
+      `;
+      const tbody = document.createElement("tbody");
+      tbody.className = "divide-y divide-slate-100 bg-white";
+      filteredRows.forEach(({ row, index, itemInfo }) => {
+        if (!Array.isArray(row) || row.length < 2) return;
+        const tr = document.createElement("tr");
+        tr.className = "hover:bg-slate-50 transition-colors group";
+        const indexTd = document.createElement("td");
+        indexTd.className = "px-4 py-2.5 text-slate-400 text-[11px] font-mono";
+        indexTd.textContent = String(index).padStart(3, '0');
+        const idTd = document.createElement("td");
+        idTd.className = "mono px-4 py-2.5 font-semibold text-primary-700 bg-primary-50/50";
+        idTd.textContent = row[0];
+        const nameTd = document.createElement("td");
+        nameTd.className = "px-4 py-2.5 font-bold text-slate-800";
+        nameTd.textContent = itemInfo.name;
+        const typeTd = document.createElement("td");
+        typeTd.className = "px-4 py-2.5 text-slate-500";
+        typeTd.innerHTML = itemInfo.type ? `<span class="px-2 py-0.5 rounded bg-slate-100 text-[11px] font-medium border border-slate-200">${itemInfo.type}</span>` : "-";
+        const qtyTd = document.createElement("td");
+        qtyTd.className = "px-4 py-2";
+        qtyTd.appendChild(createInputForValue(row[1], ["Prop_have", "value", index, 1], "string-number"));
+        const actionTd = document.createElement("td");
+        actionTd.className = "px-4 py-2 text-right";
+        const removeBtn = document.createElement("button");
+        removeBtn.className = "btn min-h-7 px-2 py-1 text-[11px] text-red-600 border-red-200 bg-red-50 hover:bg-red-100 opacity-0 group-hover:opacity-100 transition-opacity";
+        removeBtn.type = "button";
+        removeBtn.textContent = "Drop";
+        removeBtn.addEventListener("click", () => removeInventoryItem(index, itemInfo.name));
+        actionTd.appendChild(removeBtn);
+        tr.appendChild(indexTd);
+        tr.appendChild(idTd);
+        tr.appendChild(nameTd);
+        tr.appendChild(typeTd);
+        tr.appendChild(qtyTd);
+        tr.appendChild(actionTd);
+        tbody.appendChild(tr);
+      });
+      table.appendChild(tbody);
+      wrap.appendChild(table);
+      container.appendChild(wrap);
+      appendOpenTreeButton(container, "Prop_have");
+    }
+
+    function getFilteredInventoryRows(props, itemMap) {
+      const query = state.inventorySearch.trim().toLowerCase();
+      return props
+        .map((row, index) => {
+          const id = Array.isArray(row) ? String(Number(row[0])) : "";
+          const itemInfo = itemMap[id] || { name: "Unknown Object", type: "" };
+          return { row, index, id, itemInfo };
+        })
+        .filter(entry => {
+          if (!Array.isArray(entry.row) || entry.row.length < 2) return false;
+          const type = entry.itemInfo.type || "";
+          const typeHead = type.split(/\s+/)[0] || type;
+          const matchesType = state.inventoryType === "all" || typeHead === state.inventoryType || type.includes(state.inventoryType);
+          const haystack = `${entry.id} ${entry.itemInfo.name} ${type} ${entry.row[1]}`.toLowerCase();
+          const matchesSearch = !query || haystack.includes(query);
+          return matchesType && matchesSearch;
+        });
+    }
+
+    function appendInventoryFilterControls(section, props, filteredRows, itemMap) {
+      const types = [...new Set(Object.values(itemMap).map(item => (item.type || "").split(/\s+/)[0]).filter(Boolean))].sort();
+      const panel = document.createElement("div");
+      panel.className = "mb-4 grid gap-3 rounded-xl border border-slate-200 bg-white p-3 shadow-sm lg:grid-cols-[minmax(220px,1fr)_180px_140px_auto] items-center";
+
+      const searchWrap = document.createElement("div");
+      searchWrap.className = "relative w-full";
+      searchWrap.innerHTML = `<div class="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none"><svg class="h-4 w-4 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg></div>`;
+      const search = document.createElement("input");
+      search.id = "inventorySearchInput";
+      search.className = "compact-input pl-9";
+      search.type = "search";
+      search.placeholder = "通过 ID 或标识检索...";
+      search.value = state.inventorySearch;
+      search.setSelectionRange?.(state.inventorySearchCursor, state.inventorySearchCursor);
+      search.addEventListener("input", event => {
+        state.inventorySearch = event.target.value;
+        state.inventorySearchCursor = event.target.selectionStart || 0;
+        refreshAll();
+        requestAnimationFrame(() => {
+          const nextInput = document.getElementById("inventorySearchInput");
+          nextInput?.focus();
+          nextInput?.setSelectionRange?.(state.inventorySearchCursor, state.inventorySearchCursor);
+        });
+      });
+      searchWrap.appendChild(search);
+
+      const typeSelect = document.createElement("select");
+      typeSelect.className = "compact-input font-medium";
+      typeSelect.innerHTML = `<option value="all">聚合视图 (All)</option>` + types.map(type => `<option value="${escapeHtml(type)}">${escapeHtml(type)}</option>`).join("");
+      typeSelect.value = types.includes(state.inventoryType) ? state.inventoryType : "all";
+      if (typeSelect.value !== state.inventoryType) state.inventoryType = "all";
+      typeSelect.addEventListener("change", event => {
+        state.inventoryType = event.target.value;
+        refreshAll();
+      });
+
+      const bulkQty = document.createElement("input");
+      bulkQty.className = "compact-input text-center font-mono";
+      bulkQty.type = "number";
+      bulkQty.min = "1";
+      bulkQty.step = "1";
+      bulkQty.placeholder = "批量基准值";
+
+      const bulkButton = document.createElement("button");
+      bulkButton.className = "btn bg-slate-800 text-white hover:bg-slate-700 border-none shadow-md";
+      bulkButton.type = "button";
+      bulkButton.innerHTML = `<svg class="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" /></svg> 注入批量 (${filteredRows.length})`;
+      bulkButton.disabled = filteredRows.length === 0;
+      bulkButton.addEventListener("click", () => bulkSetInventoryQuantity(filteredRows, bulkQty.value));
+
+      const summary = document.createElement("div");
+      summary.className = "text-[11px] font-semibold text-slate-400 lg:col-span-4 px-1";
+      summary.textContent = `DATA SNAPSHOT: Total ${props.length} items. Filter hit ${filteredRows.length} nodes. Execute batch operation with caution.`;
+
+      panel.appendChild(searchWrap);
+      panel.appendChild(typeSelect);
+      panel.appendChild(bulkQty);
+      panel.appendChild(bulkButton);
+      panel.appendChild(summary);
+      section.appendChild(panel);
+    }
+
+    function bulkSetInventoryQuantity(filteredRows, quantity) {
+      const quantityNumber = Number(quantity);
+      if (!Number.isInteger(quantityNumber) || quantityNumber <= 0) {
+        setMessage([{ type: "error", text: "批量基准值异常：期望正整数。" }]);
+        return;
+      }
+      const nextQty = String(quantityNumber);
+      filteredRows.forEach(({ index }) => {
+        setByPath(state.data, ["Prop_have", "value", index, 1], nextQty);
+      });
+      markChange(["Prop_have", "value"]);
+      refreshAll();
+      setMessage([{ type: "info", text: `批处理完成：共计 ${filteredRows.length} 个节点写入新值 ${nextQty}。` }]);
+    }
+
+    function removeInventoryItem(index, itemName) {
+      const props = getByPath(state.data, ["Prop_have", "value"]);
+      if (!Array.isArray(props) || index < 0 || index >= props.length) return;
+      const row = props[index];
+      const displayName = itemName || row?.[0] || `NODE_${index}`;
+      if (!window.confirm(`高危操作：确认从内存中抹除节点「${displayName}」？`)) return;
+      props.splice(index, 1);
+      markChange(["Prop_have", "value"]);
+      refreshAll();
+      setMessage([{ type: "warn", text: `节点销毁：${displayName}。如需恢复可查阅原始快照。` }]);
+    }
+
+    function appendInventoryAddControls(section, props, itemMap) {
+      const ownedIds = new Set(
+        props
+          .filter(row => Array.isArray(row) && row.length >= 2)
+          .map(row => String(Number(row[0])))
+      );
+      const availableItems = Object.entries(itemMap)
+        .filter(([id]) => !ownedIds.has(String(Number(id))))
+        .map(([id, item]) => ({ id: String(Number(id)), ...item }))
+        .sort((a, b) => Number(a.id) - Number(b.id));
+
+      const panel = document.createElement("div");
+      panel.className = "mb-4 grid gap-3 rounded-xl border border-primary-100 bg-primary-50/30 p-3 shadow-sm md:grid-cols-[minmax(220px,1fr)_140px_auto] items-center relative overflow-hidden";
+      panel.innerHTML += `<div class="absolute left-0 top-0 bottom-0 w-1 bg-primary-400"></div>`;
+
+      const select = document.createElement("select");
+      select.className = "compact-input font-medium ml-1";
+      select.disabled = availableItems.length === 0;
+      if (availableItems.length === 0) {
+        select.innerHTML = `<option value="">全节点字典已收录完毕</option>`;
+      } else {
+        select.innerHTML = availableItems.map(item => {
+          const label = `UID [${item.id.padStart(3,'0')}] - ${item.name}${item.type ? ` | ${item.type}` : ""}`;
+          return `<option value="${item.id}">${escapeHtml(label)}</option>`;
+        }).join("");
+      }
+
+      const qty = document.createElement("input");
+      qty.className = "compact-input font-mono text-center";
+      qty.type = "number";
+      qty.min = "1";
+      qty.step = "1";
+      qty.value = "1";
+      qty.placeholder = "初始装载量";
+      qty.disabled = availableItems.length === 0;
+
+      const button = document.createElement("button");
+      button.className = "btn btn-primary";
+      button.type = "button";
+      button.innerHTML = `<svg class="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" /></svg> 构造新节点`;
+      button.disabled = availableItems.length === 0;
+      button.addEventListener("click", () => addInventoryItem(select.value, qty.value, itemMap));
+
+      panel.appendChild(select);
+      panel.appendChild(qty);
+      panel.appendChild(button);
+      section.appendChild(panel);
+    }
+
+    function addInventoryItem(itemId, quantity, itemMap) {
+      const props = getByPath(state.data, ["Prop_have", "value"]);
+      if (!Array.isArray(props)) return;
+      const normalizedId = String(Number(itemId));
+      const quantityNumber = Number(quantity);
+      const normalizedQty = String(quantityNumber);
+      if (!Number.isInteger(Number(itemId)) || !(normalizedId in itemMap)) {
+        setMessage([{ type: "error", text: "构造失败：未知实体指纹。" }]);
+        return;
+      }
+      if (!Number.isInteger(quantityNumber) || quantityNumber <= 0) {
+        setMessage([{ type: "error", text: "装载异常：容量需为合法正整数。" }]);
+        return;
+      }
+      const exists = props.some(row => Array.isArray(row) && String(Number(row[0])) === normalizedId);
+      if (exists) {
+        setMessage([{ type: "warn", text: "节点冲突：内存中已存在此实体拓扑。" }]);
+        return;
+      }
+
+      props.push([normalizedId, normalizedQty]);
+      markChange(["Prop_have", "value"]);
+      refreshAll();
+      const item = itemMap[normalizedId];
+      setMessage([{ type: "info", text: `实体成功挂载：${item.name} | 初始化容量：${normalizedQty}` }]);
+    }
+
+    function escapeHtml(value) {
+      return String(value)
+        .replaceAll("&", "&amp;")
+        .replaceAll("<", "&lt;")
+        .replaceAll(">", "&gt;")
+        .replaceAll('"', "&quot;")
+        .replaceAll("'", "&#039;");
+    }
+
+    function parseNameFromPacked(value) {
+      if (typeof value !== "string" || value === "null") return "";
+      return value.split("|")[0] || "";
+    }
+
+    function renderMemberEditor(key, title, nameSlot, editableSlots, slotLabels = {}) {
+      const members = getByPath(state.data, [key, "value"]);
+      if (!Array.isArray(members) || !members.length) return;
+      const container = appendSection(title, "复合管道字符串解析：仅提取头部指针用于辨识。其余槽位采取直接内存读写模式。");
+      const wrap = document.createElement("div");
+      wrap.className = "max-h-[30rem] overflow-auto rounded-xl border border-slate-200 shadow-sm relative";
+      const table = document.createElement("table");
+      table.className = "w-full min-w-[980px] text-left text-xs";
+      const headCells = ["UID", "解析标识", "核心复合序列", ...editableSlots.map(slot => slotLabels[slot] || `SLOT [${slot}]`)];
+      table.innerHTML = `<thead class="sticky top-0 bg-white/95 backdrop-blur text-slate-500 z-10 shadow-sm"><tr class="divide-x divide-slate-100">${headCells.map(cell => `<th class="px-4 py-3 font-medium uppercase tracking-wider">${cell}</th>`).join("")}</tr></thead>`;
+      const tbody = document.createElement("tbody");
+      tbody.className = "divide-y divide-slate-100 bg-white";
+      members.forEach((row, index) => {
+        if (!Array.isArray(row)) return;
+        const tr = document.createElement("tr");
+        tr.className = "hover:bg-slate-50 transition-colors align-top divide-x divide-slate-50";
+        const idTd = document.createElement("td");
+        idTd.className = "mono px-4 py-3 font-semibold text-primary-700 bg-primary-50/30";
+        idTd.textContent = row[0] || `HEX_${index}`;
+        const nameTd = document.createElement("td");
+        nameTd.className = "px-4 py-3 font-bold text-slate-800";
+        nameTd.innerHTML = `<span class="bg-slate-100 px-2 py-1 rounded border border-slate-200">${parseNameFromPacked(row[nameSlot]) || "-"}</span>`;
+        const packedTd = document.createElement("td");
+        packedTd.className = "min-w-64 px-4 py-2.5";
+        packedTd.appendChild(createInputForValue(row[nameSlot], [key, "value", index, nameSlot], "string"));
+        tr.appendChild(idTd);
+        tr.appendChild(nameTd);
+        tr.appendChild(packedTd);
+        editableSlots.forEach(slot => {
+          const td = document.createElement("td");
+          td.className = "min-w-32 px-4 py-2.5";
+          td.appendChild(createInputForValue(row[slot], [key, "value", index, slot], inferStringNumberType(row[slot])));
+          const referenceHint = describeReferenceValue(row[slot]);
+          if (referenceHint) {
+            const hint = document.createElement("div");
+            hint.className = "mt-1 text-[10px] font-semibold text-amber-700";
+            hint.textContent = referenceHint;
+            td.appendChild(hint);
+          }
+          tr.appendChild(td);
+        });
+        tbody.appendChild(tr);
+      });
+      table.appendChild(tbody);
+      wrap.appendChild(table);
+      container.appendChild(wrap);
+      appendOpenTreeButton(container, key);
+    }
+
+    function describeReferenceValue(value) {
+      if (typeof value !== "string") return "";
+      const refs = [];
+      if (/\bTMB\d+\b/.test(value)) refs.push("宅邸建筑引用");
+      if (/\bLTB\d+\b/.test(value)) refs.push("地块/府邸建筑引用");
+      if (/\bSBI\d+\b/.test(value)) refs.push("商铺/城市建筑引用");
+      if (/\bM\d+\b/.test(value)) refs.push("人物ID引用");
+      return refs.length ? [...new Set(refs)].join(" / ") : "";
+    }
+
+    function inferStringNumberType(value) {
+      if (typeof value === "number") return "number";
+      if (typeof value === "string" && value.trim() !== "" && Number.isFinite(Number(value))) return "string-number";
+      return "string";
+    }
+
+    function renderCityEditor(template) {
+      const cities = getByPath(state.data, ["CityData_now", "value"]);
+      if (!Array.isArray(cities) || !cities.length) return;
+      const container = appendSection("城邦网络体系 CityData_now", "矩阵主节点编辑，复合域原样挂载。系统自动剥离安全槽位供给读写。");
+      const wrap = document.createElement("div");
+      wrap.className = "max-h-96 overflow-auto rounded-xl border border-slate-200 shadow-sm relative";
+      const table = document.createElement("table");
+      table.className = "w-full min-w-[820px] text-left text-xs";
+      const slots = template?.citySlots || [
+        { index: 7, label: "府邸名" },
+        { index: 8, label: "本府邸人数" },
+        { index: 9, label: "剩余可招募人数" },
+        { index: 10, label: "已安排仆人数" },
+        { index: 11, label: "本府邸成员数量" },
+        { index: 14, label: "武庙加成" },
+        { index: 27, label: "安全" },
+        { index: 28, label: "便捷" },
+        { index: 29, label: "税率/标记" }
+      ];
+      table.innerHTML = `<thead class="sticky top-0 bg-white/95 backdrop-blur text-slate-500 z-10 shadow-sm"><tr class="divide-x divide-slate-100"><th class="px-4 py-3 font-medium uppercase tracking-wider">节点集群</th><th class="px-4 py-3 font-medium uppercase tracking-wider w-48">复合主干域</th>${slots.map(slot => `<th class="px-4 py-3 font-medium uppercase tracking-wider">${slot.label}</th>`).join("")}</tr></thead>`;
+      const tbody = document.createElement("tbody");
+      tbody.className = "divide-y divide-slate-100 bg-white";
+      cities.forEach((city, cityIndex) => {
+        const main = Array.isArray(city) ? city[0] : null;
+        if (!Array.isArray(main)) return;
+        const tr = document.createElement("tr");
+        tr.className = "hover:bg-slate-50 transition-colors align-top divide-x divide-slate-50";
+        const indexTd = document.createElement("td");
+        indexTd.className = "px-4 py-3 font-semibold text-primary-700 bg-primary-50/30";
+        indexTd.textContent = `CLUSTER_${cityIndex}`;
+        const mainTd = document.createElement("td");
+        mainTd.className = "mono max-w-48 truncate px-4 py-3 text-slate-500";
+        mainTd.title = main[0] || "";
+        mainTd.textContent = main[0] || "-";
+        tr.appendChild(indexTd);
+        tr.appendChild(mainTd);
+        slots.forEach(slot => {
+          const td = document.createElement("td");
+          td.className = "min-w-32 px-4 py-2.5";
+          td.appendChild(createInputForValue(main[slot.index], ["CityData_now", "value", cityIndex, 0, slot.index], inferStringNumberType(main[slot.index])));
+          tr.appendChild(td);
+        });
+        tbody.appendChild(tr);
+      });
+      table.appendChild(tbody);
+      wrap.appendChild(table);
+      container.appendChild(wrap);
+      appendOpenTreeButton(container, "CityData_now");
+    }
+
+    function renderHorseEditor(template) {
+      const horses = getByPath(state.data, ["Horse_Have", "value"]);
+      if (!Array.isArray(horses) || !horses.length) return;
+      const horseLabels = template?.horseLabels || ["花色", "年龄", "力量", "速度", "智商", "主人/人物编号", "马匹信息"];
+      const container = appendSection("载具集群 Horse_Have", "资料声明阵列结构。提供多维属性的安全写入通道。");
+      const grid = document.createElement("div");
+      grid.className = "grid gap-4 md:grid-cols-2 lg:grid-cols-2 xl:grid-cols-3";
+      horses.forEach((horse, index) => {
+        if (!Array.isArray(horse)) return;
+        const card = document.createElement("div");
+        card.className = "rounded-xl border border-slate-200 bg-white p-4 shadow-sm hover:shadow-md transition-shadow relative overflow-hidden group";
+        card.innerHTML += `<div class="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-slate-200 to-slate-300 group-hover:from-primary-400 group-hover:to-primary-600 transition-all"></div>`;
+        const title = document.createElement("div");
+        title.className = "mb-3 mt-1 flex items-center justify-between";
+        title.innerHTML = `<span class="text-xs font-bold text-slate-800 bg-slate-100 px-2 py-1 rounded">MOUNT UNIT [${index}]</span> <svg class="h-4 w-4 text-slate-300" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>`;
+        card.appendChild(title);
+        const fields = document.createElement("div");
+        fields.className = "grid gap-3 sm:grid-cols-2";
+        horse.forEach((value, slot) => {
+          const label = document.createElement("label");
+          label.className = "col-span-1";
+          if(slot === horse.length - 1) label.className = "col-span-1 sm:col-span-2"; // 最后一个槽位（信息）占满
+          const span = document.createElement("span");
+          span.className = "mb-1 block text-[10px] font-bold text-slate-400 uppercase tracking-wider";
+          span.textContent = horseLabels[slot] || `SLOT [${slot}]`;
+          label.appendChild(span);
+          label.appendChild(createInputForValue(value, ["Horse_Have", "value", index, slot], inferStringNumberType(value)));
+          fields.appendChild(label);
+        });
+        card.appendChild(fields);
+        grid.appendChild(card);
+      });
+      container.appendChild(grid);
+      appendOpenTreeButton(container, "Horse_Have");
+    }
+
+    function createInputForValue(value, path, explicitType) {
+      const kind = valueKind(value);
+      let input;
+      if (kind === "boolean" || explicitType === "boolean") {
+        input = document.createElement("select");
+        input.className = "compact-input font-mono";
+        input.innerHTML = `<option value="true">true</option><option value="false">false</option>`;
+        input.value = String(value);
+      } else {
+        input = document.createElement("input");
+        input.className = "compact-input font-mono placeholder:text-slate-300";
+        input.type = explicitType === "number" || explicitType === "string-number" || kind === "number" ? "number" : "text";
+        input.value = value === null ? "" : String(value);
+      }
+
+      input.dataset.path = JSON.stringify(path);
+      input.dataset.type = explicitType || kind;
+      input.addEventListener("change", event => {
+        const target = event.currentTarget;
+        const targetPath = JSON.parse(target.dataset.path);
+        const current = getByPath(state.data, targetPath);
+        try {
+          const next = parseInputValue(target.value, target.dataset.type, current);
+          setByPath(state.data, targetPath, next);
+          markChange(targetPath);
+          target.setCustomValidity("");
+          target.classList.add('bg-primary-50', 'border-primary-300', 'transition-colors');
+          setTimeout(() => target.classList.remove('bg-primary-50', 'border-primary-300'), 500);
+          refreshAfterEdit(false);
+        } catch (error) {
+          target.setCustomValidity(error.message);
+          target.reportValidity();
+        }
+      });
+      return input;
+    }
+
+    function markChange(path) {
+      const key = pathToKey(path);
+      const before = getByPath(state.originalData, path);
+      const after = getByPath(state.data, path);
+      if (JSON.stringify(before) === JSON.stringify(after)) {
+        state.changes.delete(key);
+      } else {
+        state.changes.set(key, { before, after });
+      }
+    }
+
+    function refreshAfterEdit(updateRaw) {
+      el.changeCount.textContent = String(state.changes.size);
+      if (state.changes.size > 0) {
+          el.changeCount.parentElement.classList.add('scale-110');
+          setTimeout(() => el.changeCount.parentElement.classList.remove('scale-110'), 200);
+      }
+      if (updateRaw) el.rawEditor.value = JSON.stringify(state.data, null, 2);
+      if (state.currentView === "tree") renderTree();
+    }
+
+    function renderTree() {
+      el.treeContainer.innerHTML = "";
+      const rows = [];
+      buildRows(state.data, [], rows, 0);
+      const fragment = document.createDocumentFragment();
+      rows.forEach(row => fragment.appendChild(row));
+      el.treeContainer.appendChild(fragment);
+    }
+
+    function buildRows(value, path, rows, depth) {
+      const kind = valueKind(value);
+      const key = pathToKey(path);
+      const currentPathText = path.length ? displayPath(path) : "ROOT";
+      const matchesSearch = !state.search || currentPathText.toLowerCase().includes(state.search.toLowerCase());
+      const canExpand = kind === "object" || kind === "array";
+      const isExpanded = path.length === 0 || state.expanded.has(key);
+
+      if (path.length && !matchesSearch && !hasSearchMatch(value, currentPathText)) {
+        return;
+      }
+
+      const row = document.createElement("div");
+      row.className = "tree-row group border-l-[3px] border-transparent hover:border-primary-400";
+      const nameCell = document.createElement("div");
+      nameCell.className = "flex min-w-0 items-center gap-2";
+      nameCell.style.paddingLeft = `${Math.min(depth * 20, 240)}px`;
+
+      if (canExpand) {
+        const toggle = document.createElement("button");
+        toggle.className = "btn h-6 w-6 px-0 py-0 text-slate-400 hover:text-primary-600 bg-white shadow-sm border border-slate-200 hover:bg-primary-50 hover:border-primary-200 transition-all";
+        toggle.innerHTML = isExpanded ? `<svg class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M20 12H4"/></svg>` : `<svg class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M12 4v16m8-8H4"/></svg>`;
+        toggle.title = isExpanded ? "折叠节点" : "展开节点";
+        toggle.addEventListener("click", () => {
+          if (state.expanded.has(key)) state.expanded.delete(key);
+          else state.expanded.add(key);
+          renderTree();
+        });
+        nameCell.appendChild(toggle);
+      } else {
+        const spacer = document.createElement("span");
+        spacer.className = "inline-block w-6";
+        nameCell.appendChild(spacer);
+      }
+
+      const label = document.createElement("span");
+      label.className = "mono min-w-0 truncate text-xs font-bold text-slate-700 bg-slate-100 px-1.5 py-0.5 rounded group-hover:bg-primary-50 group-hover:text-primary-700 transition-colors";
+      label.title = currentPathText;
+      label.textContent = path.length ? String(path[path.length - 1]) : "ROOT";
+      nameCell.appendChild(label);
+
+      const valueCell = document.createElement("div");
+      if (canExpand) {
+        valueCell.className = "text-[11px] font-mono text-slate-400 font-semibold tracking-wider flex items-center";
+        valueCell.innerHTML = kind === "array" ? `<span class="text-indigo-400 mr-1">Array</span> [${value.length}]` : `<span class="text-amber-500 mr-1">Object</span> {${Object.keys(value).length}}`;
+      } else {
+        valueCell.appendChild(createInputForValue(value, path, kind));
+      }
+
+      const typeCell = document.createElement("div");
+      typeCell.className = "text-[10px] font-bold text-slate-400 uppercase tracking-wider flex justify-end";
+      typeCell.textContent = kind;
+
+      row.appendChild(nameCell);
+      row.appendChild(valueCell);
+      row.appendChild(typeCell);
+      rows.push(row);
+
+      if (canExpand && isExpanded) {
+        const entries = kind === "array" ? value.map((item, index) => [index, item]) : Object.entries(value);
+        entries.forEach(([childKey, childValue]) => {
+          buildRows(childValue, path.concat(childKey), rows, depth + 1);
+        });
+      }
+    }
+
+    function hasSearchMatch(value, basePath) {
+      if (!state.search) return true;
+      const needle = state.search.toLowerCase();
+      if (basePath.toLowerCase().includes(needle)) return true;
+      if (Array.isArray(value)) {
+        return value.some((item, index) => hasSearchMatch(item, `${basePath}[${index}]`));
+      }
+      if (isRecord(value)) {
+        return Object.entries(value).some(([key, item]) => hasSearchMatch(item, `${basePath}.${key}`));
+      }
+      return String(value).toLowerCase().includes(needle);
+    }
+
+    function expandTopLevel() {
+      if (!state.data) return;
+      state.expanded.clear();
+      Object.keys(state.data).forEach(key => state.expanded.add(key));
+      state.expanded.add("");
+      renderTree();
+    }
+
+    function collapseAll() {
+      state.expanded.clear();
+      renderTree();
+    }
+
+    function downloadModified() {
+      if (!state.data) return;
+      const output = JSON.stringify(state.data);
+      const blob = new Blob([output], { type: "application/json;charset=utf-8" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      const dot = state.fileName.lastIndexOf(".");
+      const base = dot >= 0 ? state.fileName.slice(0, dot) : state.fileName || "GameData";
+      const ext = dot >= 0 ? state.fileName.slice(dot) : ".es3";
+      a.href = url;
+      a.download = `${base}_modified${ext}`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+      setMessage([{ type: "info", text: `已生成独立构建文件：${a.download}。请手动移入游戏目录覆盖。` }]);
+    }
+
+    function applyRawJson() {
+      try {
+        const parsed = JSON.parse(el.rawEditor.value);
+        state.data = parsed;
+        state.changes.clear();
+        collectChanges(state.originalData, state.data, [], state.changes);
+        refreshAll();
+        setMessage([{ type: "info", text: "AST 抽象语法树重构完毕，已映射到全部可视化终端。" }]);
+      } catch (error) {
+        setMessage([{ type: "error", text: `致命异常：JSON 语法解析崩溃：${error.message}` }]);
+      }
+    }
+
+    function collectChanges(before, after, path, changes) {
+      if (JSON.stringify(before) === JSON.stringify(after)) return;
+      const beforeComplex = Array.isArray(before) || isRecord(before);
+      const afterComplex = Array.isArray(after) || isRecord(after);
+      if (beforeComplex && afterComplex) {
+        const keys = new Set([
+          ...Object.keys(before || {}),
+          ...Object.keys(after || {})
+        ]);
+        keys.forEach(key => collectChanges(before?.[key], after?.[key], path.concat(Array.isArray(after) ? Number(key) : key), changes));
+      } else {
+        changes.set(pathToKey(path), { before, after });
+      }
+    }
+
+    function resetChanges() {
+      if (!state.originalData) return;
+      state.data = clone(state.originalData);
+      state.changes.clear();
+      el.rawEditor.value = JSON.stringify(state.data, null, 2);
+      refreshAll();
+      setMessage([{ type: "info", text: "快照回滚成功，已恢复到初始装载状态。" }]);
+    }
+
+    function applyPreset() {
+      const activeTemplate = getActiveTemplate();
+      const presetPaths = activeTemplate?.presetPaths || [
+        ["CGNum", "value", 0],
+        ["CGNum", "value", 1],
+        ["FamilyData", "value", 5],
+        ["GetMoney_Month", "value", 0],
+        ["GetMoney_Month", "value", 1],
+        ["ZhiZeData_ZhangMu", "value", 0]
+      ];
+      presetPaths.forEach(path => {
+        const current = getByPath(state.data, path);
+        if (current === undefined) return;
+        setByPath(state.data, path, typeof current === "number" ? 999999 : "999999");
+        markChange(path);
+      });
+      refreshAll();
+      setMessage([{ type: "warn", text: "⚠️ 高危警告：已触发极限资源注入指令。请先在沙盒环境测试稳定性。" }]);
+    }
+
+    el.fileInput.addEventListener("change", event => {
+      const file = event.target.files?.[0];
+      if (!file) return;
+      loadFile(file).catch(error => {
+        setMessage([{ type: "error", text: error.message }]);
+        el.statusBadge.textContent = "解析失败";
+        el.statusBadge.className = "badge border-red-200 bg-red-50 text-red-700 shadow-sm";
+      });
+    });
+
+    ["dragenter", "dragover"].forEach(type => {
+      el.dropZone.addEventListener(type, event => {
+        event.preventDefault();
+        el.dropZone.classList.add("drag-active");
+      });
+    });
+
+    ["dragleave", "drop"].forEach(type => {
+      el.dropZone.addEventListener(type, event => {
+        event.preventDefault();
+        el.dropZone.classList.remove("drag-active");
+      });
+    });
+
+    el.dropZone.addEventListener("drop", event => {
+      const file = event.dataTransfer.files?.[0];
+      if (!file) return;
+      loadFile(file).catch(error => setMessage([{ type: "error", text: error.message }]));
+    });
+
+    document.addEventListener("click", event => {
+      const pathButton = event.target.closest("[data-open-path]");
+      if (pathButton) {
+        state.currentView = "tree";
+        state.expanded.add(pathButton.dataset.openPath);
+        refreshAll();
+      }
+    });
+
+    document.querySelectorAll(".view-tab").forEach(btn => {
+      btn.addEventListener("click", () => {
+        state.currentView = btn.dataset.view;
+        refreshAll();
+      });
+    });
+
+    el.searchInput.addEventListener("input", event => {
+      state.search = event.target.value.trim();
+      if (state.currentView !== "tree") state.currentView = "tree";
+      renderTree();
+      refreshAll();
+    });
+
+    el.downloadBtn.addEventListener("click", downloadModified);
+    el.resetBtn.addEventListener("click", resetChanges);
+    el.expandAllBtn.addEventListener("click", expandTopLevel);
+    el.collapseAllBtn.addEventListener("click", collapseAll);
+    el.applyRawBtn.addEventListener("click", applyRawJson);
+    el.applyPresetBtn.addEventListener("click", applyPreset);
+
+    refreshAll();
+  </script>
+</body>
+</html>
